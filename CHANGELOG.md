@@ -29,3 +29,9 @@
 - 格式按 **magic bytes** 判定（PNG / GIF），不看扩展名
 - id 校验 `^[A-Za-z0-9_-]{1,64}$`，拒绝覆盖内置 `default`
 - 已验证安装 / 列表 / 卸载往返后 `roles.json` 与操作前**字节一致**
+
+### 附带素材
+
+- `roles/华小科.png` —— 维护者所在部门美术老师的原创作品，已获授权随本仓库分发
+  （版权归创作者及该部门所有，未授予再许可）。来源与许可见 `NOTICE.md`；
+  已确认 PNG 内无文本 / EXIF 元数据块。clone 后 `node install-role-image.mjs --from-dir roles` 即可安装。

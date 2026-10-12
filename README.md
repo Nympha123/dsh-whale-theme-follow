@@ -29,6 +29,9 @@ node apply-accent-follow.mjs
 
 # 2) 校验（27 项：静态检查 + 把补丁函数抽出来实际执行）
 node verify-accent-follow.mjs
+
+# 3) 装角色图（仓库里附了一张已获授权的，见 roles/README.md）
+node install-role-image.mjs --from-dir roles
 ```
 
 不带参数时会**自动定位**已安装的插件文件（`$DSH_HOME/profiles/{desktop,web,tui}/node_modules/dsh-whale-widget/assets/whale-widget.js`）。
@@ -203,7 +206,10 @@ CI（`.github/workflows/verify.yml`）会在 Ubuntu 上拉取指定上游版本�
 - `roles/` 目录**默认被 `.gitignore` 忽略**：角色图通常是第三方素材（角色形象多为他人或机构所有），
   授权状态往往无法举证。请把图放在 `roles/` 里本地使用，**不要直接提交**。
   如果你确实拥有某张图的权利（自己创作 / 已获授权 / 自由许可），
-  可以用 `git add -f roles/<文件>` 强制纳入，并在 `NOTICE.md` 里补上它的来源与许可。
+  可以在 `.gitignore` 里为该文件加一条 `!` 例外后提交，并在 `NOTICE.md` 里写明来源与许可。
+- 本仓库**已纳入一张**：`roles/华小科.png` —— 维护者所在**部门美术老师的原创作品**，已获授权随仓库分发
+  （版权归创作者及该部门所有，未授予再许可）。它的来源与许可记在 [NOTICE.md](NOTICE.md)，
+  入库前也核过内嵌元数据（块序列仅 `IHDR` / `IDAT` / `IEND`，无文本 / EXIF 块）。
 
 ## 致谢
 
