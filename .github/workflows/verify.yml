@@ -21,6 +21,18 @@ jobs:
           fi
           echo "OK：未跟踪任何上游文件。"
 
+  # 数据类工具自检：不依赖上游包、不联网，秒级跑完
+  tools:
+    runs-on: ubuntu-latest
+    needs: guard
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: 泡泡框导入 / 角色图安装 / dry-run 零副作用
+        run: node tests/tools-check.mjs
+
   patch-and-verify:
     runs-on: ubuntu-latest
     needs: guard

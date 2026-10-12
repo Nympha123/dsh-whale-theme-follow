@@ -1,6 +1,6 @@
 {
   "name": "dsh-whale-theme-follow",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "DSH 小鲸鱼挂件的本地增强工具：菜单/面板主色跟随泡泡描边色；角色图安装到用户数据目录（不随插件升级丢失）",
@@ -16,10 +16,14 @@
     "node": ">=18"
   },
   "scripts": {
+    "install-all": "node install-all.mjs",
     "apply": "node apply-accent-follow.mjs",
     "verify": "node verify-accent-follow.mjs",
     "check": "node apply-accent-follow.mjs && node verify-accent-follow.mjs",
+    "frame": "node install-bubble-frame.mjs --list",
+    "install-frame": "node install-bubble-frame.mjs",
     "roles": "node install-role-image.mjs --list",
-    "install-roles": "node install-role-image.mjs --from-dir roles"
+    "install-roles": "node install-role-image.mjs --from-dir roles",
+    "test": "node tests/tools-check.mjs"
   }
 }

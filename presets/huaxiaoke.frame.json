@@ -1,0 +1,94 @@
+{
+  "preset": "huaxiaoke",
+  "version": 1,
+  "frameId": "frame_preset_huaxiaoke",
+  "setDefault": true,
+  "frame": {
+    "name": "华小科",
+    "builtin": false,
+    "pinned": 0,
+    "textColor": "#f6808d",
+    "safe": {
+      "x": 100.508,
+      "y": 39.497,
+      "w": 677.16,
+      "h": 448
+    },
+    "slots": {
+      "big": {
+        "dx": 0,
+        "dy": 0,
+        "scale": 1,
+        "kind": "svg",
+        "svgPreset": "classic",
+        "svgCode": "",
+        "imgId": "",
+        "imgScale": 1,
+        "imgOpacity": 1,
+        "paint": {
+          "bgOn": true,
+          "bg": "#FFFFFF",
+          "bgAlpha": 1,
+          "lineOn": true,
+          "line": "#a85c6a",
+          "lineW": 18,
+          "lineAlpha": 1,
+          "dashOn": false,
+          "dash": "0",
+          "cap": "round",
+          "join": "round"
+        }
+      },
+      "small1": {
+        "dx": 0,
+        "dy": 0,
+        "scale": 1,
+        "kind": "svg",
+        "svgPreset": "classic",
+        "svgCode": "",
+        "imgId": "",
+        "imgScale": 1,
+        "imgOpacity": 1,
+        "paint": {
+          "bgOn": true,
+          "bg": "#FFFFFF",
+          "bgAlpha": 1,
+          "lineOn": true,
+          "line": "#a85c6a",
+          "lineW": 18,
+          "lineAlpha": 1,
+          "dashOn": false,
+          "dash": "0",
+          "cap": "round",
+          "join": "round"
+        },
+        "on": true
+      },
+      "small2": {
+        "dx": 0,
+        "dy": 0,
+        "scale": 1,
+        "kind": "svg",
+        "svgPreset": "classic",
+        "svgCode": "",
+        "imgId": "",
+        "imgScale": 1,
+        "imgOpacity": 1,
+        "paint": {
+          "bgOn": true,
+          "bg": "#FFFFFF",
+          "bgAlpha": 1,
+          "lineOn": true,
+          "line": "#a85c6a",
+          "lineW": 18,
+          "lineAlpha": 1,
+          "dashOn": false,
+          "dash": "0",
+          "cap": "round",
+          "join": "round"
+        },
+        "on": true
+      }
+    }
+  }
+}

@@ -9,6 +9,7 @@ roles/*
 # ---- 补丁产生的本地备份 / 还原点 ----
 *.orig-*.js
 whale-widget.orig-*.js
+.dshw-bubble.bak-*.json
 *.bak
 
 # ---- 本机临时文件 ----

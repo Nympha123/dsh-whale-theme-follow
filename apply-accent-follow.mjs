@@ -20,7 +20,7 @@ import os from 'node:os'
 import path from 'node:path'
 import vm from 'node:vm'
 
-const TOOL_VERSION = '0.1.0'
+const TOOL_VERSION = '0.2.0'
 
 // ---------------------------------------------------------------- 排除名单
 // 这些行必须保持真色值或原样：它们是「泡泡自己的颜色」、数据可视化配色，
@@ -39,7 +39,7 @@ const KEEP_PATTERNS = [
 ]
 
 // ------------------------------------------------------- 运行时注入的取色函数
-const HELPER = String.raw`// ===== 本地补丁（theme-follow）：菜单 / 面板主色跟随泡泡描边色 =====
+const HELPER_TEMPLATE = String.raw`// ===== 本地补丁（theme-follow）：菜单 / 面板主色跟随泡泡描边色 =====
 // 取色来源：保底框（defaultFrameId）大泡泡槽位的描边色 slots.big.paint.line
 //   —— 改「自定义泡泡 → 外观 → 描边」或把某个框设为保底，主色即随之变化。
 // 写进 <html> 的 --dshw-accent / --dshw-accent-rgb；样式表与内联样式里的 var() 引用
@@ -78,16 +78,38 @@ function dshwAccentSync() {
     el.style.setProperty('--dshw-accent', want)
     el.style.setProperty('--dshw-accent-rgb', dshwAccentRgbOf(want) || '32,49,112')
   } catch (err) {}
+}
+// ===== 本地补丁（theme-follow）：预设角色自动选中 =====
+// 当前选中的角色存在浏览器 localStorage['dshw-role']，脚本改不到它。
+// 所以在"没有保存过角色"（localStorage 为空 / 为 default）时，自动选中同名的角色；
+// 名字由参数决定，空字符串 = 完全不改变原行为。
+// 用户一旦在「菜单 → 角色」里自己选过，localStorage 就有值，这条路不会再触发。
+var DSHW_PRESET_ROLE_NAME = __PRESET_ROLE__
+function dshwPresetRoleOf(list) {
+  try {
+    if (!DSHW_PRESET_ROLE_NAME) return null
+    for (var i = 0; i < (list || []).length; i++) {
+      var r = list[i]
+      if (r && r.id !== 'default' && r.name === DSHW_PRESET_ROLE_NAME) return r
+    }
+  } catch (err) {}
+  return null
 }`
+
+function buildHelper(roleName) {
+  return HELPER_TEMPLATE.replace('__PRESET_ROLE__', JSON.stringify(String(roleName == null ? '' : roleName)))
+}
 
 // ------------------------------------------------------------------ CLI
 function parseArgs(argv) {
-  const out = { path: '', backupDir: '', dryRun: false, revert: false, dshHome: '' }
+  const out = { path: '', backupDir: '', dryRun: false, revert: false, dshHome: '', presetRole: '华小科' }
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
     if (a === '--path' || a === '-p') out.path = argv[++i] || ''
     else if (a === '--backup-dir') out.backupDir = argv[++i] || ''
     else if (a === '--dsh-home') out.dshHome = argv[++i] || ''
+    else if (a === '--preset-role') out.presetRole = argv[++i] == null ? '' : argv[i]
+    else if (a === '--no-preset-role') out.presetRole = ''
     else if (a === '--dry-run') out.dryRun = true
     else if (a === '--revert') out.revert = true
     else if (a === '--help' || a === '-h') out.help = true
@@ -107,6 +129,8 @@ const USAGE = `小鲸鱼挂件 · 主题联动补丁 v${TOOL_VERSION}
   -p, --path <文件>      目标文件；省略时自动在 DSH_HOME 下查找
       --backup-dir <目录> 备份目录（默认与目标文件同目录）
       --dsh-home <目录>   DSH 数据目录（默认 $DSH_HOME 或 ~/.dsh）
+      --preset-role <名字> 没保存过角色时自动选中的角色名（默认「华小科」）
+      --no-preset-role    不做角色自动选中（只改主题联动）
       --dry-run           只报告将要做的改动，不写盘
       --revert            用备份目录里最新的备份还原目标文件
   -h, --help              显示帮助
@@ -125,7 +149,8 @@ function guessTarget(dshHome) {
 }
 
 // -------------------------------------------------------------- 核心变换
-function transform(src) {
+function transform(src, roleName) {
+  const HELPER = buildHelper(roleName)
   const eol = src.includes('\r\n') ? '\r\n' : '\n'
   const lines = src.split(/\r?\n/)
 
@@ -150,10 +175,29 @@ function transform(src) {
   const A3_OLD = ['  try { resyncSizeCfg() } catch (err) {}', '  menuOpen = !menuOpen'].join(eol)
   const A3_NEW = ['  try { resyncSizeCfg() } catch (err) {}', '  try { dshwAccentSync() } catch (err) {}', '  menuOpen = !menuOpen'].join(eol)
 
+  // 角色自动选中：嵌在 loadRoles() 的「没有保存过角色」分支里
+  const A4_OLD = [
+    "        } else if (saved && saved !== 'default') {",
+    '          // 保存的角色已被删除：回退默认鲸鱼娘',
+    "          applyRole('default', '小鲸鱼', IMG_URL)",
+    '        }'
+  ].join(eol)
+  const A4_NEW = [
+    "        } else if (saved && saved !== 'default') {",
+    '          // 保存的角色已被删除：回退默认鲸鱼娘',
+    "          applyRole('default', '小鲸鱼', IMG_URL)",
+    '        } else {',
+    '          // [本地补丁] 没有保存过角色时自动选中预设角色（DSHW_PRESET_ROLE_NAME 为空则什么都不做）',
+    '          var dshwPresetRole = dshwPresetRoleOf(roleList)',
+    '          if (dshwPresetRole) applyRole(dshwPresetRole.id, dshwPresetRole.name, dshwPresetRole.url)',
+    '        }'
+  ].join(eol)
+
   const edits = [
     { name: 'CSS :root 变量', old: A1_OLD, neu: A1_NEW },
     { name: 'framesNow 钩子 + 取色函数', old: A2_OLD, neu: A2_NEW + eol + HELPER },
-    { name: 'toggleMenu 钩子', old: A3_OLD, neu: A3_NEW }
+    { name: 'toggleMenu 钩子', old: A3_OLD, neu: A3_NEW },
+    { name: 'loadRoles 角色自动选中', old: A4_OLD, neu: A4_NEW }
   ]
 
   for (const e of edits) {
@@ -206,7 +250,7 @@ if (src.includes('dshwAccentSync')) {
 
 let result
 try {
-  result = transform(src)
+  result = transform(src, args.presetRole)
 } catch (err) {
   console.error('打补丁失败：' + err.message)
   console.error('（上游可能改了这些代码片段；请到仓库开 issue 并附上插件版本）')
@@ -224,6 +268,7 @@ if (args.dryRun) {
   console.log(`  将替换主色        : ${result.nHex} 行`)
   console.log(`  将替换半透明色    : ${result.nRgb} 行`)
   console.log(`  按名单保留        : ${result.nKept} 行`)
+  console.log(`  角色自动选中      : ${args.presetRole ? '「' + args.presetRole + '」' : '不做'}`)
   console.log('  未写盘。')
   process.exit(0)
 }
@@ -247,4 +292,5 @@ console.log(`  替换主色        : ${result.nHex} 行`)
 console.log(`  替换半透明色    : ${result.nRgb} 行`)
 console.log(`  按名单保留      : ${result.nKept} 行`)
 console.log(`  现用变量引用    : ${vars} 处`)
+console.log(`  角色自动选中    : ${args.presetRole ? '「' + args.presetRole + '」（localStorage 为空时生效）' : '不做'}`)
 console.log('  下一步          : 重启 DSH（桌面端请完全退出重开），再硬刷新页面')

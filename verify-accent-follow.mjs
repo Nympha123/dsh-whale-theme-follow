@@ -58,6 +58,16 @@ check('toggleMenu 内已挂钩子', /try \{ dshwAccentSync\(\) \} catch \(err\) 
 check('dshwAccentSync 恰好出现 3 次（1 定义 + 2 调用）', (src.match(/dshwAccentSync/g) || []).length === 3,
   (src.match(/dshwAccentSync/g) || []).length)
 
+// ---------------- 静态：角色自动选中 ----------------
+const roleVarRe = /var DSHW_PRESET_ROLE_NAME = ("(?:[^"\\]|\\.)*")/
+const roleVar = roleVarRe.exec(src)
+check('DSHW_PRESET_ROLE_NAME 已注入', !!roleVar, roleVar ? roleVar[1] : '未找到')
+check('dshwPresetRoleOf 已定义', src.includes('function dshwPresetRoleOf'))
+check('loadRoles 内已挂自动选中钩子',
+  /var dshwPresetRole = dshwPresetRoleOf\(roleList\)\s*\r?\n\s*if \(dshwPresetRole\) applyRole\(/.test(src))
+check('dshwPresetRoleOf 恰好出现 2 次（1 定义 + 1 调用）',
+  (src.match(/dshwPresetRoleOf/g) || []).length === 2, (src.match(/dshwPresetRoleOf/g) || []).length)
+
 // ---------------- 行为：抽出补丁函数实际执行 ----------------
 function grab(name) {
   const i = src.indexOf('function ' + name + '(')
@@ -125,6 +135,38 @@ if (ok) {
   a5.setFrames(null)
   a5.sync()
   check('无框库时不抛错、不写变量', Object.keys(s5).length === 0, JSON.stringify(s5))
+
+  // ---- 角色自动选中的行为测试 ----
+  function rolePick(roleLiteral) {
+    const code2 = [
+      'var DSHW_PRESET_ROLE_NAME = ' + roleLiteral + ';',
+      grab('dshwPresetRoleOf'),
+      'return dshwPresetRoleOf'
+    ].join('\n')
+    // eslint-disable-next-line no-new-func
+    return new Function(code2)()
+  }
+  const roles = [
+    { id: 'default', name: '小鲸鱼', url: '/dsh-whale/image.png' },
+    { id: 'role_abc', name: '华小科', url: '/dsh-whale/role-image.png?id=role_abc' }
+  ]
+  // 用固定的名字测函数逻辑（不依赖注入值，--no-preset-role 时也成立）
+  const pickFixed = rolePick('"华小科"')
+  const hit = pickFixed(roles)
+  check('自动选中：命中同名角色', !!(hit && hit.id === 'role_abc'), hit ? hit.id : 'null')
+  check('自动选中：不会选中内置 default', !(hit && hit.id === 'default'))
+  check('自动选中：名字不匹配时返回 null', pickFixed([roles[0], { id: 'role_z', name: '别的' }]) === null)
+  check('自动选中：名字为空串时不做任何事', rolePick("''")(roles) === null)
+  check('自动选中：列表为空 / null 时不抛错', pickFixed([]) === null && pickFixed(null) === null)
+
+  // 注入值必须与行为一致：非空 → 命中同名角色；空串 → 什么都不做
+  const injected = roleVar ? roleVar[1] : "''"
+  const pickInjected = rolePick(injected)
+  const injHit = pickInjected(roles)
+  let injOk
+  if (injected === '""') injOk = injHit === null
+  else { let nm = ''; try { nm = JSON.parse(injected) } catch (e) { nm = null }; injOk = !!(nm && injHit && injHit.name === nm) }
+  check('注入的角色名与实际行为一致', injOk, injected + ' -> ' + (injHit ? injHit.name : 'null'))
 }
 
 let bad = 0

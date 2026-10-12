@@ -25,7 +25,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-const TOOL_VERSION = '0.1.0'
+const TOOL_VERSION = '0.2.0'
 const ID_RE = /^[A-Za-z0-9_-]{1,64}$/
 const DEFAULT_ROLE_ID = 'default'
 const INDEX_NAME = 'roles.json'
@@ -70,11 +70,16 @@ function parseArgs(argv) {
 }
 
 // 与插件 lib/index.js 的 pickRoleDir() 同逻辑：$DSH_HOME/whale-roles 优先，取第一个可写的
-function pickRoleDir(dshHome) {
+// create=false（dry-run / --list）时绝不建目录 —— 只读操作不该有副作用
+function pickRoleDir(dshHome, create = true) {
   const home = dshHome || process.env.DSH_HOME || path.join(os.homedir(), '.dsh')
   const cands = [path.join(home, 'whale-roles'), path.join(home, 'profiles', 'web', 'whale-roles')]
   for (const p of cands) {
-    try { fs.mkdirSync(p, { recursive: true }); fs.accessSync(p, fs.constants.W_OK); return p } catch (err) { /* 下一个 */ }
+    try {
+      if (create) fs.mkdirSync(p, { recursive: true })
+      fs.accessSync(p, fs.constants.W_OK)
+      return p
+    } catch (err) { /* 下一个 */ }
   }
   return cands[0]
 }
@@ -92,7 +97,9 @@ function extOf(format) { return format === 'gif' ? 'gif' : 'png' }
 
 function readIndex(dir) {
   try {
-    const p = JSON.parse(fs.readFileSync(path.join(dir, INDEX_NAME), 'utf8'))
+    let s = fs.readFileSync(path.join(dir, INDEX_NAME), 'utf8')
+    if (s.charCodeAt(0) === 0xfeff) s = s.slice(1) // 容忍 UTF-8 BOM
+    const p = JSON.parse(s)
     if (p && Array.isArray(p.roles)) {
       if (!p.roles.some((r) => r && r.id === DEFAULT_ROLE_ID)) {
         p.roles.unshift({ id: DEFAULT_ROLE_ID, name: '小鲸鱼', pinnedAt: 1, createdAt: 0 })
@@ -115,7 +122,14 @@ function installOne(dir, file, name, id, pin, dryRun) {
   if (!fs.existsSync(file)) { console.error('图片不存在：' + file); return false }
   const format = detectFormat(file)
   if (!format) { console.error('不是可识别的 PNG / GIF：' + file); return false }
-  const wantId = id || newId()
+
+  // 没指定 id 时先按**名字**找已有角色并复用它的 id —— 这样重复安装不会长出第二个「华小科」
+  let wantId = id
+  if (!wantId) {
+    const idx = readIndex(dir)
+    const same = idx.roles.find((r) => r && r.id !== DEFAULT_ROLE_ID && r.name === name)
+    wantId = same ? same.id : newId()
+  }
   if (!ID_RE.test(wantId)) { console.error(`角色 id 不合法（需匹配 ${ID_RE}）：${wantId}`); return false }
   if (wantId === DEFAULT_ROLE_ID) { console.error('不能覆盖内置的 default 角色'); return false }
 
@@ -124,9 +138,14 @@ function installOne(dir, file, name, id, pin, dryRun) {
   if (dryRun) {
     console.log(`[dry-run] 将安装：${path.basename(file)}  ->  ${dest}`)
     console.log(`          显示名=${name}  id=${wantId}  format=${format}  ${bytes} 字节`)
+    if (!id) console.log('          （这个 id 是预览值；实际安装时按名字复用已有角色，找不到才新建）')
     return true
   }
   fs.copyFileSync(file, dest)
+
+  // 复用了 id 但格式变了（png <-> gif）时，清掉另一扩展名的旧文件，避免留孤儿
+  const stale = path.join(dir, wantId + '.' + (extOf(format) === 'gif' ? 'png' : 'gif'))
+  try { if (fs.existsSync(stale)) fs.unlinkSync(stale) } catch (err) {}
 
   const index = readIndex(dir)
   const existed = index.roles.find((r) => r && r.id === wantId)
@@ -141,7 +160,7 @@ function installOne(dir, file, name, id, pin, dryRun) {
   console.log(`已安装角色「${name}」`)
   console.log(`  目录   : ${dir}`)
   console.log(`  图片   : ${wantId}.${extOf(format)}  (${bytes} 字节, ${format})`)
-  console.log(`  索引   : ${INDEX_NAME}${existed ? '（已更新同名 id）' : ''}`)
+  console.log(`  索引   : ${INDEX_NAME}${existed ? '（已更新同名 id，未新建）' : ''}`)
   return true
 }
 
@@ -151,7 +170,7 @@ if (args.help) { console.log(USAGE); process.exit(0) }
 if (args.version) { console.log(TOOL_VERSION); process.exit(0) }
 if (!args.image && !args.fromDir && !args.list && !args.remove) { console.log(USAGE); process.exit(2) }
 
-const dir = pickRoleDir(args.dshHome)
+const dir = pickRoleDir(args.dshHome, !args.dryRun && !args.list)
 
 if (args.list) {
   const index = readIndex(dir)
