@@ -1,0 +1,17 @@
+# ---- 角色图与素材：默认不入库 ----
+# 角色形象多为他人或机构持有，使用者手上的图往往无法举证授权状态；
+# 想随仓库分发请先确认权利，再用 git add -f 强制纳入并更新 NOTICE.md。
+roles/*
+!roles/README.md
+
+# ---- 补丁产生的本地备份 / 还原点 ----
+*.orig-*.js
+whale-widget.orig-*.js
+*.bak
+
+# ---- 本机临时文件 ----
+node_modules/
+*.tgz
+Thumbs.db
+.DS_Store
+desktop.ini

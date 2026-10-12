@@ -1,0 +1,25 @@
+{
+  "name": "dsh-whale-theme-follow",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "DSH 小鲸鱼挂件的本地增强工具：菜单/面板主色跟随泡泡描边色；角色图安装到用户数据目录（不随插件升级丢失）",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "dsh-whale-widget",
+    "theme"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "apply": "node apply-accent-follow.mjs",
+    "verify": "node verify-accent-follow.mjs",
+    "check": "node apply-accent-follow.mjs && node verify-accent-follow.mjs",
+    "roles": "node install-role-image.mjs --list",
+    "install-roles": "node install-role-image.mjs --from-dir roles"
+  }
+}

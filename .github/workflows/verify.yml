@@ -1,0 +1,108 @@
+name: verify
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # 本仓库承诺不含上游代码/素材（上游 PROVENANCE.md 明确 assets/** 不授予再许可）
+      - name: 本仓库不得跟踪任何上游文件
+        run: |
+          bad=$(git ls-files | grep -E '(^|/)(lib/index\.js|lib/accounting\.mjs|cordis\.patch\.yml|whale-widget\.js|DSniang[0-9]*\.png|icon\.png|minecraft-exp-orb\.wav|task-end-a\.wav)$' || true)
+          if [ -n "$bad" ]; then
+            echo "::error::仓库里出现了上游文件，请移除："
+            echo "$bad"
+            exit 1
+          fi
+          echo "OK：未跟踪任何上游文件。"
+
+  patch-and-verify:
+    runs-on: ubuntu-latest
+    needs: guard
+    strategy:
+      fail-fast: false
+      matrix:
+        # 用户实际会用到的两种安装来源：npm 已发布版 / GitHub tag
+        source: [npm, github]
+        upstream: ['0.4.2']
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 取得上游插件（仅本次测试用，不会随本仓库分发）
+        run: |
+          set -e
+          v="${{ matrix.upstream }}"
+          case "${{ matrix.source }}" in
+            npm)    url="https://registry.npmjs.org/dsh-whale-widget/-/dsh-whale-widget-${v}.tgz" ;;
+            github) url="https://codeload.github.com/MeteorNOX/DeepSeek-Balance-Whale-Widget/tar.gz/refs/tags/v${v}" ;;
+            *)      echo "::error::未知来源"; exit 1 ;;
+          esac
+          mkdir -p up
+          curl -sSL "$url" | tar -xz -C up --strip-components=1
+          echo "TARGET=up/assets/whale-widget.js" >> "$GITHUB_ENV"
+
+      - name: 就位检查
+        run: |
+          test -f "$TARGET"
+          echo "来源=${{ matrix.source }} 版本=${{ matrix.upstream }} 大小=$(wc -c < "$TARGET") 字节"
+          sha256sum "$TARGET"
+
+      - name: dry-run（先看会改什么）
+        run: node apply-accent-follow.mjs --path "$TARGET" --dry-run
+
+      - name: 打补丁
+        run: node apply-accent-follow.mjs --path "$TARGET"
+
+      - name: 校验（27 项）
+        run: node verify-accent-follow.mjs --path "$TARGET"
+
+      - name: 幂等性（再跑一次必须无改动）
+        run: |
+          before=$(sha256sum "$TARGET" | cut -d' ' -f1)
+          node apply-accent-follow.mjs --path "$TARGET"
+          after=$(sha256sum "$TARGET" | cut -d' ' -f1)
+          if [ "$before" != "$after" ]; then echo "::error::幂等性失败：文件被二次修改"; exit 1; fi
+          echo "OK：二次执行无改动。"
+
+      - name: 还原与可复现（--revert 回到原始字节，重打得到同一结果）
+        run: |
+          patched1=$(sha256sum "$TARGET" | cut -d' ' -f1)
+          node apply-accent-follow.mjs --path "$TARGET" --revert
+          reverted=$(sha256sum "$TARGET" | cut -d' ' -f1)
+          if [ "$patched1" = "$reverted" ]; then echo "::error::--revert 未改变文件"; exit 1; fi
+          node apply-accent-follow.mjs --path "$TARGET" > /dev/null
+          patched2=$(sha256sum "$TARGET" | cut -d' ' -f1)
+          if [ "$patched1" != "$patched2" ]; then echo "::error::还原后重打补丁的结果不一致"; exit 1; fi
+          echo "OK：patched=$patched1（可复现）"
+
+      - name: 保存本次补丁结果的哈希
+        run: sha256sum "$TARGET" | cut -d' ' -f1 > patched.sha
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sha-${{ matrix.source }}
+          path: patched.sha
+
+  # 不变量：npm 安装与 GitHub 安装打出来的结果必须逐字节一致
+  cross-source:
+    runs-on: ubuntu-latest
+    needs: patch-and-verify
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: shas
+      - name: 两种来源结果一致
+        run: |
+          set -e
+          echo "npm    : $(cat shas/sha-npm/patched.sha)"
+          echo "github : $(cat shas/sha-github/patched.sha)"
+          if ! cmp -s shas/sha-npm/patched.sha shas/sha-github/patched.sha; then
+            echo "::error::npm 与 GitHub 来源的补丁结果不一致"
+            exit 1
+          fi
+          echo "OK：两种安装来源结果一致。"

@@ -1,0 +1,11 @@
+# 统一换行：仓库内与工作区都用 LF（CI 跑 Linux，跨平台协作时最省事）
+* text=auto eol=lf
+
+# 二进制守卫：万一把素材纳入版本控制，别被当文本改写
+*.png binary
+*.gif binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.wav binary
+*.mp3 binary
